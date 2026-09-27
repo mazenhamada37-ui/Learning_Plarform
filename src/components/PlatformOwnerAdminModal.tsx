@@ -48,9 +48,14 @@ interface Props {
   onUpdateCourse?: (course: Course) => void;
   updateAdminConfigInCloud?: (config: { passcode: string }) => Promise<void>;
   getStoredMasterPasscode?: () => string;
+  // دوال المسح الجماعي (Danger Zone)
+  onDeleteAllStudents?: () => Promise<void> | void;
+  onDeleteAllInstructors?: () => Promise<void> | void;
+  onClearAllPendingRequests?: () => Promise<void> | void;
+  isCloudSynced?: boolean;
 }
 
-type Tab = 'students' | 'instructors' | 'courses' | 'requests';
+type Tab = 'overview' | 'approvals' | 'students' | 'instructors' | 'courses' | 'requests';
 type AuthView = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-newpass';
 
 // الإيميل الوحيد المسموح له باسترجاع كلمة مرور مالك المنصة
@@ -103,6 +108,10 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
   onDeleteCourse,
   updateAdminConfigInCloud,
   getStoredMasterPasscode = () => localStorage.getItem('edu_admin_passcode') || '778899',
+  onDeleteAllStudents,
+  onDeleteAllInstructors,
+  onClearAllPendingRequests,
+  isCloudSynced = true,
 }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('login');
@@ -121,9 +130,15 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
   const [flowSuccess, setFlowSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [tab, setTab] = useState<Tab>('students');
+  const [tab, setTab] = useState<Tab>('overview');
   const [search, setSearch] = useState('');
   const [details, setDetails] = useState<Record<string, any> | null>(null);
+
+  // Danger Zone confirmation states
+  const [dangerAction, setDangerAction] = useState<'students' | 'instructors' | 'requests' | null>(null);
+  const [dangerConfirmText, setDangerConfirmText] = useState('');
+  const [isDangerLoading, setIsDangerLoading] = useState(false);
+  const [dangerMessage, setDangerMessage] = useState('');
 
   const q = search.trim().toLowerCase();
   const students = useMemo(
@@ -138,6 +153,10 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
     () => (Array.isArray(courses) ? courses : []).filter((x) => `${x.title || ''} ${x.category || ''}`.toLowerCase().includes(q)),
     [courses, q]
   );
+
+  const pendingStudentRows = Array.isArray(pendingStudents) ? pendingStudents : [];
+  const pendingInstructorRows = Array.isArray(pendingInstructors) ? pendingInstructors : [];
+  const requestRows = Array.isArray(pendingCourseRequests) ? pendingCourseRequests : [];
 
   if (!isOpen) return null;
 
@@ -170,6 +189,9 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
     setPasscode('');
     setLoginError('');
     setAuthView('login');
+    setDangerAction(null);
+    setDangerConfirmText('');
+    setDangerMessage('');
     resetForgotFlowState();
     onClose();
   };
@@ -309,6 +331,31 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
   const action = (event: React.MouseEvent, fn?: () => void) => {
     event.stopPropagation();
     fn?.();
+  };
+
+  // تنفيذ إجراء منطقة الخطر بعد التأكيد
+  const executeDangerAction = async () => {
+    if (dangerConfirmText.trim() !== 'حذف') return;
+    setIsDangerLoading(true);
+    setDangerMessage('');
+    try {
+      if (dangerAction === 'students' && onDeleteAllStudents) {
+        await onDeleteAllStudents();
+        setDangerMessage('تم حذف جميع حسابات الطلاب بنجاح.');
+      } else if (dangerAction === 'instructors' && onDeleteAllInstructors) {
+        await onDeleteAllInstructors();
+        setDangerMessage('تم حذف جميع حسابات المحاضرين بنجاح.');
+      } else if (dangerAction === 'requests' && onClearAllPendingRequests) {
+        await onClearAllPendingRequests();
+        setDangerMessage('تم مسح جميع الطلبات المعلقة بنجاح.');
+      }
+      setDangerAction(null);
+      setDangerConfirmText('');
+    } catch (err) {
+      setDangerMessage('حدث خطأ أثناء تنفيذ العملية. حاول مرة أخرى.');
+    } finally {
+      setIsDangerLoading(false);
+    }
   };
 
   if (!authenticated) {
@@ -517,10 +564,6 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
     );
   }
 
-  const pendingStudentRows = Array.isArray(pendingStudents) ? pendingStudents : [];
-  const pendingInstructorRows = Array.isArray(pendingInstructors) ? pendingInstructors : [];
-  const requestRows = Array.isArray(pendingCourseRequests) ? pendingCourseRequests : [];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3" dir="rtl" onClick={close}>
       <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
@@ -530,13 +573,192 @@ export const PlatformOwnerAdminModal: React.FC<Props> = ({
         </header>
 
         <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 dark:border-slate-800">
-          {([['students', 'الطلاب'], ['instructors', 'المحاضرون'], ['courses', 'الكورسات'], ['requests', 'طلبات التعديل']] as [Tab, string][]).map(([value, text]) => (
-            <button key={value} type="button" onClick={() => { setTab(value); setSearch(''); }} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-black ${tab === value ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>{text}</button>
+          {([['overview', '📊 نظرة عامة'], ['approvals', 'الموافقات'], ['students', 'الطلاب'], ['instructors', 'المحاضرون'], ['courses', 'الكورسات'], ['requests', 'طلبات التعديل']] as [Tab, string][]).map(([value, text]) => (
+            <button key={value} type="button" onClick={() => { setTab(value); setSearch(''); setDangerAction(null); setDangerMessage(''); }} className={`whitespace-nowrap border-b-2 px-4 py-3 text-xs font-black ${tab === value ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>{text}</button>
           ))}
         </nav>
 
         <main className="flex-1 overflow-y-auto p-5">
-          {tab !== 'requests' && <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'students' ? 'بحث عن طالب...' : tab === 'instructors' ? 'بحث عن محاضر...' : 'بحث عن كورس...'} className="mb-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800" />}
+
+          {/* ============ تاب نظرة عامة (كاميرا المراقبة) ============ */}
+          {tab === 'overview' && (
+            <section className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">
+                  <p className="text-2xl font-black text-indigo-600">{registeredStudents.length}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">إجمالي الطلاب</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                  <p className="text-2xl font-black text-amber-600">{registeredInstructors.length}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">إجمالي المحاضرين</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <p className="text-2xl font-black text-emerald-600">{courses.length}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">إجمالي الكورسات</p>
+                </div>
+                <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950/30">
+                  <p className="text-2xl font-black text-orange-600">{pendingStudentRows.length + pendingInstructorRows.length}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">طلبات تسجيل معلقة</p>
+                </div>
+                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-900 dark:bg-purple-950/30">
+                  <p className="text-2xl font-black text-purple-600">{requestRows.length}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">طلبات تعديل كورسات</p>
+                </div>
+                <div className={`rounded-2xl border p-4 ${isCloudSynced ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30'}`}>
+                  <p className={`text-sm font-black ${isCloudSynced ? 'text-emerald-600' : 'text-rose-600'}`}>{isCloudSynced ? '🟢 متصل' : '🔴 غير متصل'}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">حالة الاتصال بالسحابة</p>
+                </div>
+              </div>
+
+              {/* آخر الطلاب المسجلين */}
+              <div>
+                <h3 className="mb-2 text-sm font-black text-slate-700 dark:text-slate-200">آخر الطلاب المسجلين</h3>
+                {registeredStudents.length === 0 ? (
+                  <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400 dark:bg-slate-800">لا يوجد طلاب مسجلون بعد</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {registeredStudents.slice(0, 5).map((s, i) => (
+                      <div key={s.email || i} onClick={() => setDetails(s)} className="flex cursor-pointer items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/30">
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{s.fullName || 'بدون اسم'}</span>
+                        <span className="text-slate-400">{s.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ============ منطقة الخطر ============ */}
+              <div className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/20">
+                <h3 className="mb-1 flex items-center gap-2 text-sm font-black text-rose-600">⚠️ منطقة الخطر</h3>
+                <p className="mb-4 text-[11px] text-rose-500">هذه الإجراءات نهائية ولا يمكن التراجع عنها. سيتم الحذف من قاعدة البيانات السحابية أيضًا.</p>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => { setDangerAction('students'); setDangerConfirmText(''); setDangerMessage(''); }}
+                    disabled={!onDeleteAllStudents || registeredStudents.length === 0}
+                    className="rounded-xl border border-rose-300 bg-white px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-900"
+                  >
+                    🗑️ حذف كل الطلاب ({registeredStudents.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDangerAction('instructors'); setDangerConfirmText(''); setDangerMessage(''); }}
+                    disabled={!onDeleteAllInstructors || registeredInstructors.length === 0}
+                    className="rounded-xl border border-rose-300 bg-white px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-900"
+                  >
+                    🗑️ حذف كل المحاضرين ({registeredInstructors.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDangerAction('requests'); setDangerConfirmText(''); setDangerMessage(''); }}
+                    disabled={!onClearAllPendingRequests || (pendingStudentRows.length + pendingInstructorRows.length === 0)}
+                    className="rounded-xl border border-rose-300 bg-white px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-900"
+                  >
+                    🗑️ مسح كل الطلبات المعلقة
+                  </button>
+                </div>
+
+                {dangerMessage && (
+                  <div className="mt-3 rounded-xl bg-white p-3 text-xs font-bold text-emerald-600 dark:bg-slate-900">{dangerMessage}</div>
+                )}
+
+                {/* صندوق التأكيد */}
+                {dangerAction && (
+                  <div className="mt-4 rounded-xl border-2 border-rose-400 bg-white p-4 dark:bg-slate-900">
+                    <p className="mb-2 text-xs font-black text-rose-600">
+                      هل أنت متأكد؟ هذا الإجراء سيحذف{' '}
+                      {dangerAction === 'students' ? 'جميع حسابات الطلاب' : dangerAction === 'instructors' ? 'جميع حسابات المحاضرين' : 'جميع الطلبات المعلقة'}{' '}
+                      نهائيًا.
+                    </p>
+                    <p className="mb-2 text-[11px] text-slate-500">اكتب كلمة <b>"حذف"</b> بالأسفل للتأكيد:</p>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={dangerConfirmText}
+                      onChange={(e) => setDangerConfirmText(e.target.value)}
+                      placeholder="اكتب: حذف"
+                      className="mb-3 w-full rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm outline-none focus:border-rose-500 dark:bg-slate-800"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={executeDangerAction}
+                        disabled={dangerConfirmText.trim() !== 'حذف' || isDangerLoading}
+                        className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isDangerLoading ? 'جارٍ الحذف...' : 'تأكيد الحذف النهائي'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDangerAction(null); setDangerConfirmText(''); }}
+                        className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* ============ تاب الموافقات ============ */}
+          {tab === 'approvals' && (
+            <section className="space-y-6">
+              <div>
+                <h3 className="mb-2 text-sm font-black text-amber-600">
+                  طلبات محاضرين تنتظر الموافقة ({pendingInstructorRows.length})
+                </h3>
+                {pendingInstructorRows.length === 0 ? (
+                  <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400 dark:bg-slate-800">لا توجد طلبات محاضرين معلقة</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pendingInstructorRows.map((instructor, index) => (
+                      <div key={instructor.email || index} onClick={() => setDetails(instructor)} className="flex cursor-pointer flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:bg-amber-950/20">
+                        <div>
+                          <b className="text-sm">{instructor.fullName || 'بدون اسم'}</b>
+                          <p className="text-xs text-slate-500">{instructor.email}</p>
+                          {instructor.specialization && <p className="text-[11px] text-slate-400">{instructor.specialization}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={(e) => action(e, () => onApproveInstructor?.(instructor.email))} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white">موافقة</button>
+                          <button type="button" onClick={(e) => action(e, () => onRejectInstructor?.(instructor.email))} className="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-600">رفض</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-sm font-black text-amber-600">
+                  طلبات طلاب تنتظر الموافقة ({pendingStudentRows.length})
+                </h3>
+                {pendingStudentRows.length === 0 ? (
+                  <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400 dark:bg-slate-800">لا توجد طلبات طلاب معلقة</p>
+                ) : (
+                  <div className="space-y-2">
+                    {pendingStudentRows.map((student, index) => (
+                      <div key={student.email || index} onClick={() => setDetails(student)} className="flex cursor-pointer flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:bg-amber-950/20">
+                        <div>
+                          <b className="text-sm">{student.fullName || 'بدون اسم'}</b>
+                          <p className="text-xs text-slate-500">{student.email}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={(e) => action(e, () => onApproveStudent?.(student.email))} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white">موافقة</button>
+                          <button type="button" onClick={(e) => action(e, () => onRejectStudent?.(student.email))} className="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-600">رفض</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {tab !== 'requests' && tab !== 'overview' && tab !== 'approvals' && <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'students' ? 'بحث عن طالب...' : tab === 'instructors' ? 'بحث عن محاضر...' : 'بحث عن كورس...'} className="mb-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800" />}
 
           {tab === 'students' && <section className="space-y-4">
             {pendingStudentRows.length > 0 && <div className="space-y-2"><h3 className="text-sm font-black text-amber-600">طلبات طلاب معلقة ({pendingStudentRows.length})</h3>{pendingStudentRows.map((student, index) => <div key={student.email || index} onClick={() => setDetails(student)} className="flex cursor-pointer flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:bg-amber-950/20"><div><b className="text-sm">{student.fullName || 'بدون اسم'}</b><p className="text-xs text-slate-500">{student.email}</p></div><div className="flex gap-2"><button type="button" onClick={(e) => action(e, () => onApproveStudent?.(student.email))} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white">موافقة</button><button type="button" onClick={(e) => action(e, () => onRejectStudent?.(student.email))} className="rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-600">رفض</button></div></div>)}</div>}

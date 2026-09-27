@@ -153,7 +153,6 @@ function MainAppContent() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [pendingCourseToStart, setPendingCourseToStart] = useState<Course | null>(null);
 
-  // States الخاصة بنافذة تفاصيل الطالب والشهادات
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<StudentProfile | null>(null);
   const [studentDetailsTab, setStudentDetailsTab] = useState<'details' | 'certificates'>('details');
   const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
@@ -385,12 +384,46 @@ function MainAppContent() {
     });
   };
 
+  // === دالة تسجيل الطالب في كورس معين: تضيف الـ courseId لقائمة enrolledCourseIds بالبروفايل ===
+  const enrollStudentInCourse = (profile: StudentProfile, courseId: string): StudentProfile => {
+    const currentIds = profile.enrolledCourseIds || [];
+    if (currentIds.includes(courseId)) return profile; // مسجل بالفعل، لا داعي للتكرار
+    const updatedProfile: StudentProfile = {
+      ...profile,
+      enrolledCourseIds: [...currentIds, courseId],
+    };
+    setStudentProfile(updatedProfile);
+    localStorage.setItem('edu_student_profile', JSON.stringify(updatedProfile));
+    saveStudentToCloud(updatedProfile).catch(console.warn);
+    return updatedProfile;
+  };
+
+  // === عند الضغط على كورس من الكتالوج: سجّل الطالب فيه تلقائيًا (لو عنده حساب) وافتحه ===
+  const handleSelectCourseFromCatalog = (course: Course) => {
+    if (!studentProfile) {
+      setPendingCourseToStart(course);
+      setIsRegistrationModalOpen(true);
+      return;
+    }
+    enrollStudentInCourse(studentProfile, course.id);
+    setSelectedCourse(course);
+  };
+
   const handleSaveProfile = (profile: StudentProfile) => {
-    const approvedProfile: StudentProfile = {
+    let approvedProfile: StudentProfile = {
       ...profile,
       status: 'approved',
       isApproved: true
     };
+
+    // لو الطالب كان بيحاول يفتح كورس معين قبل التسجيل، نضيفه لقائمة كورساته مباشرة
+    if (pendingCourseToStart) {
+      approvedProfile = {
+        ...approvedProfile,
+        enrolledCourseIds: [...(approvedProfile.enrolledCourseIds || []), pendingCourseToStart.id],
+      };
+    }
+
     setStudentProfile(approvedProfile);
     localStorage.setItem('edu_student_profile', JSON.stringify(approvedProfile));
     saveStudentToCloud(approvedProfile).catch(console.warn);
@@ -409,11 +442,23 @@ function MainAppContent() {
 
   // تسجيل دخول الطالب اللي عنده حساب موجود بالفعل (إيميل + باسورد)
   const handleLoginSuccess = (student: StudentProfile) => {
-    const approvedProfile: StudentProfile = {
+    let approvedProfile: StudentProfile = {
       ...student,
       status: 'approved',
       isApproved: true
     };
+
+    if (pendingCourseToStart) {
+      const currentIds = approvedProfile.enrolledCourseIds || [];
+      if (!currentIds.includes(pendingCourseToStart.id)) {
+        approvedProfile = {
+          ...approvedProfile,
+          enrolledCourseIds: [...currentIds, pendingCourseToStart.id],
+        };
+        saveStudentToCloud(approvedProfile).catch(console.warn);
+      }
+    }
+
     setStudentProfile(approvedProfile);
     localStorage.setItem('edu_student_profile', JSON.stringify(approvedProfile));
     setIsLoginModalOpen(false);
@@ -444,12 +489,62 @@ function MainAppContent() {
     return { isPending: false };
   };
 
+  const handleDeleteAllStudents = async () => {
+    const emails = extraRegisteredStudents.map((s) => s.email);
+    for (const email of emails) {
+      try {
+        await deleteStudentFromCloud(email);
+      } catch (err) {
+        console.warn('Failed to delete student from cloud:', email, err);
+      }
+    }
+    setExtraRegisteredStudents([]);
+    localStorage.removeItem('edu_registered_students');
+  };
+
+  const handleDeleteAllInstructors = async () => {
+    const emails = extraRegisteredInstructors.map((i) => i.email);
+    for (const email of emails) {
+      try {
+        await deleteInstructorFromCloud(email);
+      } catch (err) {
+        console.warn('Failed to delete instructor from cloud:', email, err);
+      }
+    }
+    setExtraRegisteredInstructors([]);
+    localStorage.removeItem('edu_registered_instructors');
+  };
+
+  const handleClearAllPendingRequests = async () => {
+    const studentEmails = pendingStudentRequests.map((s) => s.email);
+    for (const email of studentEmails) {
+      try {
+        await deletePendingStudentFromCloud(email);
+      } catch (err) {
+        console.warn('Failed to clear pending student:', email, err);
+      }
+    }
+    const instructorEmails = pendingInstructorRequests.map((i) => i.email);
+    for (const email of instructorEmails) {
+      try {
+        await deletePendingInstructorFromCloud(email);
+      } catch (err) {
+        console.warn('Failed to clear pending instructor:', email, err);
+      }
+    }
+    setPendingStudentRequests([]);
+    setPendingInstructorRequests([]);
+    localStorage.removeItem('edu_pending_students');
+    localStorage.removeItem('edu_pending_instructors');
+  };
+
   const safeStudentProfile: StudentProfile = studentProfile || {
     fullName: 'طالب جديد',
     email: 'student@example.com',
     phone: '',
     country: 'مصر',
-    jobTitleOrGoal: 'طالب'
+    jobTitleOrGoal: 'طالب',
+    enrolledCourseIds: []
   };
 
   return (
@@ -511,9 +606,15 @@ function MainAppContent() {
           <StudentDashboard
             courses={courses}
             userProgressMap={userProgressMap}
-            studentProfile={safeStudentProfile}
+            studentProfile={studentProfile}
             onSelectCourse={(course) => setSelectedCourse(course)}
             onOpenCertificate={(course) => setCertificateCourse(course)}
+            onOpenRegistrationModal={() => setIsRegistrationModalOpen(true)}
+            onLogoutStudent={handleLogoutStudent}
+            onBrowseCatalog={() => {
+              setSelectedCourse(null);
+              setActiveTab('catalog');
+            }}
           />
         ) : activeTab === 'instructor' ? (
           <InstructorStudio
@@ -539,14 +640,7 @@ function MainAppContent() {
             <div id="catalog-section">
               <CourseCatalog
                 courses={courses}
-                onSelectCourse={(course) => {
-                  if (!studentProfile) {
-                    setPendingCourseToStart(course);
-                    setIsRegistrationModalOpen(true);
-                  } else {
-                    setSelectedCourse(course);
-                  }
-                }}
+                onSelectCourse={handleSelectCourseFromCatalog}
                 searchQuery={searchQuery}
                 userProgressMap={userProgressMap}
                 reviews={reviews}
@@ -575,8 +669,8 @@ function MainAppContent() {
         <InstructorRegistrationModal
           isOpen={isInstructorRegistrationModalOpen}
           onClose={() => setIsInstructorRegistrationModalOpen(false)}
-          onSave={handleSaveInstructorProfile}
-        />
+          onSaveProfile={handleSaveInstructorProfile}
+            />
       )}
 
       {isStudentProfileModalOpen && (
@@ -597,7 +691,6 @@ function MainAppContent() {
         />
       )}
 
-      {/* نافذة تسجيل الدخول لحساب موجود بالفعل (إيميل + باسورد) - منفصلة تمامًا عن إضافة حساب */}
       {isLoginModalOpen && (
         <LoginModal
           isOpen={isLoginModalOpen}
@@ -657,10 +750,13 @@ function MainAppContent() {
             setCourses(prev => prev.filter(c => c.id !== id));
             deleteCourseFromCloud(id);
           }}
+          onDeleteAllStudents={handleDeleteAllStudents}
+          onDeleteAllInstructors={handleDeleteAllInstructors}
+          onClearAllPendingRequests={handleClearAllPendingRequests}
+          isCloudSynced={isCloudSynced}
         />
       )}
 
-      {/* النافذة الخاصة بتفاصيل الطالب والشهادات */}
       <StudentDetailsModal
         isOpen={isStudentDetailsOpen}
         onClose={() => setIsStudentDetailsOpen(false)}
@@ -703,7 +799,13 @@ function MainAppContent() {
           onSelectCourse={(courseId: string) => {
             const course = courses.find((c) => c.id === courseId);
             if (course) {
-              setSelectedCourse(course);
+              if (studentProfile) {
+                enrollStudentInCourse(studentProfile, course.id);
+                setSelectedCourse(course);
+              } else {
+                setPendingCourseToStart(course);
+                setIsRegistrationModalOpen(true);
+              }
               setIsAiTutorOpen(false);
             }
           }}

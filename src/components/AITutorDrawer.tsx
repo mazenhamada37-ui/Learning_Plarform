@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, Chat } from '@google/genai';
 import { Bot, Send, User, X, Loader2, BookOpen } from 'lucide-react';
 import { StudentProfile, Course } from '../types';
 
@@ -20,8 +19,11 @@ interface Message {
   matchedCourses?: Course[];
 }
 
-// عميل Gemini - المفتاح بيتقرأ تلقائيًا من بيئة AI Studio
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// نوع رسالة السياق المرسلة للسيرفر (تطابق شكل messages المتوقع في server.ts)
+interface ApiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 const nowTime = () => new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
@@ -44,28 +46,20 @@ export const AiTutorModal: React.FC<AiTutorModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<Chat | null>(null);
 
-  // إنشاء جلسة شات واحدة تحتفظ بسياق المحادثة طول ما المودال مفتوح
+  // سجل المحادثة اللي بيتبعت للسيرفر عشان يحافظ على سياق الحوار
+  const conversationHistoryRef = useRef<ApiMessage[]>([]);
+
+  // ملخص الكورسات المتاحة، بيتبعت كسياق إضافي للسيرفر
+  const coursesSummary = courses
+    .slice(0, 40)
+    .map((c) => `- ${c.title}${c.category ? ` (${c.category})` : ''}`)
+    .join('\n');
+
+  // إعادة ضبط سجل المحادثة كل ما المودال يتفتح من جديد
   useEffect(() => {
     if (!isOpen) return;
-
-    const coursesSummary = courses
-      .slice(0, 40)
-      .map((c) => `- ${c.title}${c.category ? ` (${c.category})` : ''}`)
-      .join('\n');
-
-    chatRef.current = ai.chats.create({
-     model: 'gemini-3.8-flash',
-      config: {
-        systemInstruction: `أنت "المعلم الذكي"، مساعد ذكاء اصطناعي داخل منصة تعليمية عربية اسمها "تعلَّم".
-مهمتك: الرد على أي سؤال يطرحه الطالب مهما كان موضوعه (تعليمي، تقني، عام، أو حتى محادثة عادية)، بنفس اللغة أو اللهجة اللي بيكتب بيها.
-كن مفيدًا، دقيقًا، وواضحًا، وقدم شرحًا عمليًا مع أمثلة عند الحاجة.
-لو الطالب سأل عن كورس أو موضوع تعليمي، ولاحظت إن فيه كورس متاح في القائمة دي مرتبط بسؤاله، اذكر اسمه واقترح عليه يفتحه:
-${coursesSummary || 'لا توجد كورسات متاحة حاليًا.'}
-لو مفيش كورس مطابق في القائمة، رد على السؤال بشكل كامل من معرفتك العامة من غير ما تخترع كورس مش موجود فعليًا في القائمة.`,
-      },
-    });
+    conversationHistoryRef.current = [];
   }, [isOpen]);
 
   useEffect(() => {
@@ -86,7 +80,7 @@ ${coursesSummary || 'لا توجد كورسات متاحة حاليًا.'}
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || inputText).trim();
-    if (!query || isLoading || !chatRef.current) return;
+    if (!query || isLoading) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -100,9 +94,29 @@ ${coursesSummary || 'لا توجد كورسات متاحة حاليًا.'}
     setIsLoading(true);
     setError('');
 
+    // إضافة رسالة المستخدم لسجل المحادثة المرسل للسيرفر
+    conversationHistoryRef.current.push({ role: 'user', content: query });
+
     try {
-      const response = await chatRef.current.sendMessage({ message: query });
-      const replyText = response.text || 'عذرًا، لم أتمكن من إيجاد رد مناسب. حاول تصيغ سؤالك بشكل مختلف.';
+      const response = await fetch('/api/gemini/tutor-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: conversationHistoryRef.current,
+          courseContext: coursesSummary || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'فشل الاتصال بالمساعد الذكي');
+      }
+
+      const replyText: string = data.reply || 'عذرًا، لم أتمكن من إيجاد رد مناسب. حاول تصيغ سؤالك بشكل مختلف.';
+
+      // إضافة رد البوت لسجل المحادثة عشان يفضل محتفظ بالسياق
+      conversationHistoryRef.current.push({ role: 'assistant', content: replyText });
 
       const foundCourses = findMatchingCourses(query);
 
@@ -116,7 +130,7 @@ ${coursesSummary || 'لا توجد كورسات متاحة حاليًا.'}
 
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
-      console.error('Gemini API error:', err);
+      console.error('AI Tutor error:', err);
       setError('حدث خطأ أثناء التواصل مع المساعد الذكي. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.');
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),

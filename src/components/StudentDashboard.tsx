@@ -1,49 +1,33 @@
 import React from 'react';
-import { Award, BookOpen, Clock, Flame, CheckCircle2, ArrowLeft, PlayCircle, Star, ShieldCheck, Download, UserCheck, Edit3, Mail, MapPin, Target, LogOut } from 'lucide-react';
+import { Award, BookOpen, Clock, Flame, ArrowLeft, UserCheck, Edit3, Mail, MapPin, Target, ShieldCheck, Compass } from 'lucide-react';
 import { Course, StudentProfile, UserProgress } from '../types';
 
 interface StudentDashboardProps {
-  enrolledCourses: Course[];
+  courses: Course[]; // جميع كورسات المنصة
   userProgressMap: Record<string, UserProgress>;
   onSelectCourse: (course: Course) => void;
   onOpenCertificate: (course: Course) => void;
-  streakDays: number;
   studentProfile: StudentProfile | null;
   onOpenRegistrationModal: () => void;
   onLogoutStudent?: () => void;
+  onBrowseCatalog?: () => void;
+  streakDays?: number;
 }
 
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({
-  enrolledCourses,
+  courses,
   userProgressMap,
   onSelectCourse,
   onOpenCertificate,
-  streakDays,
   studentProfile,
   onOpenRegistrationModal,
-  onLogoutStudent
+  onBrowseCatalog,
+  streakDays = 0,
 }) => {
-  // تصفية الكورسات لتقتصر فقط على الكورس أو التراك الذي اختاره الطالب عند التسجيل
-  const filteredCourses = enrolledCourses.filter((course) => {
-    if (!studentProfile || !studentProfile.jobTitleOrGoal) return true;
-    
-    const targetGoal = studentProfile.jobTitleOrGoal.toLowerCase();
-    const courseTitle = course.title.toLowerCase();
-    const courseCategory = course.category.toLowerCase();
+  // العرض يعتمد فقط على الكورسات التي سجّل فيها الطالب فعليًا (enrolledCourseIds)
+  const enrolledIds = studentProfile?.enrolledCourseIds || [];
+  const displayCourses = courses.filter((course) => enrolledIds.includes(course.id));
 
-    // مطابقة اسم التراك المختار مع عنوان الكورس أو فئته
-    return (
-      targetGoal.includes(courseTitle) || 
-      courseTitle.includes(targetGoal.split(' ')[0]) || 
-      targetGoal.includes(courseCategory) ||
-      courseCategory.includes(targetGoal.split(' ')[0])
-    );
-  });
-
-  // إذا لم يتم العثور على مطابقة دقيقة، نعرض الكورسات المسجلة كاحتياطي لكي لا تظهر الواجهة فارغة تماماً
-  const displayCourses = filteredCourses.length > 0 ? filteredCourses : enrolledCourses;
-
-  // Compute overall stats based on displayed courses
   let totalHoursStudied = 0;
   let completedCoursesCount = 0;
 
@@ -51,7 +35,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     const prog = userProgressMap[c.id];
     const totalLessons = c.modules.reduce((acc, m) => acc + m.lessons.length, 0);
     const completedLessons = prog?.completedLessonIds?.length || 0;
-    
+
     if (totalLessons > 0) {
       totalHoursStudied += Math.round((completedLessons / totalLessons) * c.estimatedHours);
     }
@@ -60,7 +44,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     }
   });
 
-  const completedCoursesList = displayCourses.filter(c => userProgressMap[c.id]?.isCompleted);
+  const completedCoursesList = displayCourses.filter((c) => userProgressMap[c.id]?.isCompleted);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-5 font-arabic">
@@ -77,7 +61,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               {studentProfile ? `أهلاً بك، ${studentProfile.fullName}! 🎓` : 'مرحباً بك في لوحة تحكمك التعليمية! 🎓'}
             </h1>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-              تابع إنجازاتك اليومية، استعرض مسارك التعليمي المخصص، واستخرج شهادات الإنجاز المعتمدة الخاصة بك.
+              تابع إنجازاتك اليومية، استعرض كورساتك المسجلة، واستخرج شهادات الإنجاز المعتمدة الخاصة بك.
             </p>
           </div>
 
@@ -91,7 +75,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </button>
         </div>
 
-        {/* Profile Card Summary if registered */}
         {studentProfile && (
           <div className="pt-4 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-emerald-100">
             <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-xl border border-white/10">
@@ -118,7 +101,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-slate-500 font-medium">الدورات المخصصة لتراكك</span>
+            <span className="text-xs text-slate-500 font-medium">كورساتي المسجلة</span>
             <div className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">
               {displayCourses.length}
             </div>
@@ -163,16 +146,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
       </div>
 
-      {/* Section 1: Filtered Courses for the Student's Track */}
+      {/* Section 1: Enrolled Courses */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white font-arabic">
-            كورسات مسارك التعليمي المختار
+            كورساتي المسجلة
           </h2>
-          {studentProfile?.jobTitleOrGoal && (
-            <span className="text-xs px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800">
-              التراك: {studentProfile.jobTitleOrGoal}
-            </span>
+          {displayCourses.length > 0 && onBrowseCatalog && (
+            <button
+              onClick={onBrowseCatalog}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>تصفح كورسات أخرى</span>
+            </button>
           )}
         </div>
 
@@ -203,7 +190,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                       {course.title}
                     </h3>
 
-                    {/* Progress Bar */}
                     <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-emerald-500 rounded-full transition-all duration-300"
@@ -230,9 +216,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
             })}
           </div>
         ) : (
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 text-center space-y-2">
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">لا توجد كورسات مطابقة لتراكك الحالي.</p>
-            <p className="text-xs text-slate-500">يرجى تعديل بياناتك الشخصية واختيار التراك المناسب.</p>
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200/80 dark:border-slate-800 text-center space-y-4">
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">لم تسجّل في أي كورس بعد.</p>
+            <p className="text-xs text-slate-500">تصفح الكورسات المتاحة على المنصة وابدأ أول كورس لك.</p>
+            {onBrowseCatalog && (
+              <button
+                onClick={onBrowseCatalog}
+                className="mt-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-2 cursor-pointer"
+              >
+                <Compass className="w-4 h-4" />
+                <span>تصفح الكورسات المتاحة</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -284,3 +279,5 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     </div>
   );
 };
+
+export default StudentDashboard;

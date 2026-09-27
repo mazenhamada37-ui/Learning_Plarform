@@ -100,6 +100,7 @@ export interface StudentProfile {
   phone?: string;
   country?: string;
   jobTitleOrGoal?: string;
+  enrolledCourseIds?: string[];
   registeredAt: string;
   status?: 'pending' | 'approved' | 'rejected';
   isApproved?: boolean;

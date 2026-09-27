@@ -237,17 +237,17 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#090d16] border-b border-slate-800/80 font-arabic text-white select-none w-full" dir="rtl">
-      <div className="w-full px-3 md:px-5 h-16 flex items-center justify-between gap-2">
+      <div className="w-full px-3 md:px-5 h-16 flex items-center justify-between gap-3">
         
-        {/* DESKTOP VIEW - نسخة مضغوطة (compact) عشان تدخل في مساحة أصغر، تظهر من 768px فما فوق */}
-        <div className="hidden md:flex items-center gap-1.5 flex-1 min-w-0">
-          <div className="flex items-center gap-1 shrink-0">
+        {/* DESKTOP VIEW - يظهر بس من 1024px فما فوق (لاب توب حقيقي فيه مساحة كافية) */}
+        <div className="hidden lg:flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Student / Instructor Toggle */}
-            <div className="flex bg-[#121929] p-0.5 rounded-lg border border-slate-800/80 shrink-0">
+            <div className="flex bg-[#121929] p-1 rounded-xl border border-slate-800/80 shrink-0">
               <button
                 type="button"
                 onClick={handleSwitchToStudent}
-                className={`px-2 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   isStudentActive
                     ? 'bg-slate-700/90 text-white border border-slate-600/50 shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -258,7 +258,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={handleSwitchToInstructor}
-                className={`px-2 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   isInstructorActive
                     ? 'bg-amber-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
@@ -279,10 +279,10 @@ export const Header: React.FC<HeaderProps> = ({
                   onOpenRegistrationModal();
                 }
               }}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-600/50 text-slate-200 hover:bg-slate-700 hover:text-white active:scale-95 text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-600/50 text-slate-200 hover:bg-slate-700 hover:text-white active:scale-95 text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
               title="تسجيل الدخول لحساب موجود"
             >
-              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <LogIn className="w-4 h-4 text-emerald-400" />
               <span>تسجيل الدخول</span>
             </button>
 
@@ -290,11 +290,11 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={handleAddAccount}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-500 hover:brightness-105 active:scale-95 text-slate-950 font-black text-[11px] shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-amber-500 hover:brightness-105 active:scale-95 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer shrink-0 whitespace-nowrap"
               title="إضافة حساب جديد"
             >
               <span>إضافة حساب</span>
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <Plus className="w-4 h-4 stroke-[3]" />
             </button>
 
             {/* User Profile Button */}
@@ -302,22 +302,22 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={handleUserProfile}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#2b1704] border border-amber-500/60 text-amber-300 hover:bg-[#3d2006] active:scale-95 text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2b1704] border border-amber-500/60 text-amber-300 hover:bg-[#3d2006] active:scale-95 text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
                 title="بيانات المحاضر"
               >
-                <GraduationCap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="max-w-[90px] truncate">{instructorDisplayName}</span>
+                <GraduationCap className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="max-w-[130px] truncate">{instructorDisplayName}</span>
               </button>
             ) : (
               studentProfile && (
                 <button
                   type="button"
                   onClick={handleUserProfile}
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#092220] border border-emerald-500/50 text-emerald-400 hover:bg-[#0d2d2a] active:scale-95 text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#092220] border border-emerald-500/50 text-emerald-400 hover:bg-[#0d2d2a] active:scale-95 text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-sm"
                   title="بيانات الطالب المسجل"
                 >
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="max-w-[100px] truncate">{studentProfile.fullName}</span>
+                  <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="max-w-[140px] truncate">{studentProfile.fullName}</span>
                 </button>
               )
             )}
@@ -326,9 +326,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={handleAiTutor}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#092225] border border-emerald-500/40 text-emerald-400 hover:bg-[#0d2d31] active:scale-95 text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#092225] border border-emerald-500/40 text-emerald-400 hover:bg-[#0d2d31] active:scale-95 text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
             >
-              <Bot className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <Bot className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>المعلم الذكي</span>
             </button>
 
@@ -336,9 +336,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={handleAdmin}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#280c3a] border border-purple-500/50 text-purple-300 hover:bg-[#34114d] active:scale-95 text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#280c3a] border border-purple-500/50 text-purple-300 hover:bg-[#34114d] active:scale-95 text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
               <span>المسؤول</span>
             </button>
 
@@ -347,21 +347,21 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={handleCatalog}
-                className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                   activeTab === 'catalog'
                     ? 'bg-[#0d1f35] border-emerald-500/70 text-emerald-300 shadow-sm'
                     : 'bg-[#0d1627] border-slate-700/80 text-emerald-400 hover:bg-[#131f37]'
                 }`}
               >
-                <BookOpen className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <BookOpen className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>كتالوج الدورات</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* MOBILE HAMBURGER - يظهر بس لما الشاشة أصغر من 768px */}
-        <div className="flex md:hidden items-center gap-2">
+        {/* MOBILE HAMBURGER - يظهر لأي شاشة أصغر من 1024px (موبايل، تابلت، أو لاب توب مقسوم) */}
+        <div className="flex lg:hidden items-center gap-2">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -423,9 +423,9 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* MOBILE DRAWER - يظهر بس لما الشاشة أصغر من 768px، فيها كل الأزرار زي الديسكتوب */}
+      {/* MOBILE DRAWER - يظهر لأي شاشة أصغر من 1024px، فيها كل الأزرار زي الديسكتوب */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-800/90 bg-[#090d16]/98 backdrop-blur-md px-4 py-4 space-y-3 animate-fade-in shadow-2xl">
+        <div className="lg:hidden border-t border-slate-800/90 bg-[#090d16]/98 backdrop-blur-md px-4 py-4 space-y-3 animate-fade-in shadow-2xl">
           <div className="flex bg-[#121929] p-1 rounded-xl border border-slate-800 w-full">
             <button
               type="button"
