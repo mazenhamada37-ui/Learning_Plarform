@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "Educational courses available or requested on the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "instructor": { "type": "object" },
+        "category": { "type": "string" },
+        "level": { "type": "string" },
+        "rating": { "type": "number" },
+        "studentsEnrolledCount": { "type": "number" },
+        "price": { "type": "number" },
+        "thumbnail": { "type": "string" },
+        "lessons": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "CourseRequest": {
+      "title": "CourseRequest",
+      "description": "Pending course additions or edits requiring platform admin approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "courseData": { "type": "object" },
+        "instructorName": { "type": "string" },
+        "instructorEmail": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "type", "courseData", "status"]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Registered students on the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "educationLevel": { "type": "string" },
+        "country": { "type": "string" },
+        "joinedDate": { "type": "string" }
+      },
+      "required": ["id", "fullName", "email"]
+    },
+    "InstructorProfile": {
+      "title": "InstructorProfile",
+      "description": "Registered instructors on the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "specialization": { "type": "string" },
+        "bio": { "type": "string" },
+        "joinedDate": { "type": "string" }
+      },
+      "required": ["id", "fullName", "email"]
+    },
+    "PlatformMeta": {
+      "title": "PlatformMeta",
+      "description": "Global platform state such as admin settings or sync tokens",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adminPasscode": { "type": "string" },
+        "recoveryEmail": { "type": "string" },
+        "lastUpdated": { "type": "string" }
+      },
+      "required": ["id"]
+    },
+    "CourseReview": {
+      "title": "CourseReview",
+      "description": "Student ratings and reviews for educational courses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "lessonTitle": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "courseId", "studentName", "rating", "comment", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Collection of all published and approved courses"
+    },
+    "/courseReviews/{reviewId}": {
+      "schema": "CourseReview",
+      "description": "Ratings and reviews submitted by students for courses"
+    },
+    "/courseRequests/{requestId}": {
+      "schema": "CourseRequest",
+      "description": "Requests submitted by instructors awaiting admin approval"
+    },
+    "/students/{studentId}": {
+      "schema": "StudentProfile",
+      "description": "Registered students synced across all devices"
+    },
+    "/pendingStudents/{studentId}": {
+      "schema": "StudentProfile",
+      "description": "Student registrations awaiting platform administrator approval"
+    },
+    "/instructors/{instructorId}": {
+      "schema": "InstructorProfile",
+      "description": "Registered instructors synced across all devices"
+    },
+    "/pendingInstructors/{instructorId}": {
+      "schema": "InstructorProfile",
+      "description": "Instructor registrations awaiting platform administrator approval"
+    },
+    "/studentProgress/{studentId}": {
+      "schema": "PlatformMeta",
+      "description": "Student learning progress, lesson completions and quiz scores across devices"
+    },
+    "/platformMeta/{metaId}": {
+      "schema": "PlatformMeta",
+      "description": "Global settings and sync status"
+    }
+  }
+}
